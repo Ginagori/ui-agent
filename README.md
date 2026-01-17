@@ -210,6 +210,59 @@ MCP_SERVER_PORT=8080 ui-agent-mcp
 
 ---
 
+## 🤝 Integración con Playbook Agent
+
+UI Agent se integra automáticamente con **AI Project Playbook Agent** para desarrollo coordinado de proyectos.
+
+### Cómo Funciona
+
+Cuando trabajas en un proyecto creado con Playbook Agent, UI Agent **detecta automáticamente** el contexto:
+
+```bash
+cd mi-proyecto-creado-con-playbook
+ui-agent chat
+
+# Output:
+# ℹ Playbook context detected - using project rules
+```
+
+### Archivos que UI Agent Detecta
+
+| Archivo | Qué contiene | Cómo lo usa UI Agent |
+|---------|--------------|---------------------|
+| `CLAUDE.md` | Reglas del proyecto, tech stack | Genera componentes con el stack correcto |
+| `docs/PRD.md` | Requisitos del producto | Sigue la arquitectura definida |
+| `.playbook/session.json` | Estado de la sesión | Contexto de la fase actual |
+
+### Flujo de Trabajo Integrado
+
+```
+1. Playbook Agent: Crea proyecto con Discovery y Planning
+   → playbook_start_project "Build a SaaS for X"
+   → Genera CLAUDE.md con tech stack
+   → Genera PRD.md con arquitectura
+
+2. UI Agent: Genera frontend siguiendo las reglas
+   → ui-agent chat
+   → Detecta contexto automáticamente
+   → "Crea un dashboard con sidebar"
+   → Componente usa Tailwind, React, etc. del CLAUDE.md
+
+3. Resultado: Componentes consistentes con la arquitectura del proyecto
+```
+
+### Instalar Playbook Agent
+
+```bash
+git clone https://github.com/Ginagori/ai-project-playbook.git
+cd ai-project-playbook
+uv venv && uv pip install -r requirements.txt
+```
+
+**Repositorio:** https://github.com/Ginagori/ai-project-playbook
+
+---
+
 ## Arquitectura del Proyecto
 
 ```
