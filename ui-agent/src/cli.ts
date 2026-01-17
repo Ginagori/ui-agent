@@ -8,9 +8,74 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import 'dotenv/config';
 
-import { UIAgent, GenerateOptions } from './agent.js';
+import { UIAgent, GenerateOptions, PlaybookContext } from './agent.js';
 
 const program = new Command();
+
+/**
+ * Detect and load Playbook context from the project
+ * Looks for CLAUDE.md and docs/PRD.md created by Playbook Agent
+ */
+async function loadPlaybookContext(projectPath: string): Promise<PlaybookContext | null> {
+    const context: PlaybookContext = {};
+    let hasContext = false;
+
+    // Try to load CLAUDE.md
+    try {
+        const claudeMdPath = path.join(projectPath, 'CLAUDE.md');
+        context.claudeMd = await fs.readFile(claudeMdPath, 'utf-8');
+        hasContext = true;
+
+        // Extract tech stack from CLAUDE.md if present
+        const stackMatch = context.claudeMd.match(/Tech Stack[:\s]*([^\n]+)/i);
+        if (stackMatch) {
+            context.techStack = stackMatch[1].split(/[,|]/).map(s => s.trim()).filter(Boolean);
+        }
+    } catch {
+        // No CLAUDE.md found
+    }
+
+    // Try to load PRD
+    try {
+        const prdPath = path.join(projectPath, 'docs', 'PRD.md');
+        context.prd = await fs.readFile(prdPath, 'utf-8');
+        hasContext = true;
+    } catch {
+        // No PRD found
+    }
+
+    // Try to load playbook session info
+    try {
+        const playbookPath = path.join(projectPath, '.playbook', 'session.json');
+        const sessionData = await fs.readFile(playbookPath, 'utf-8');
+        const session = JSON.parse(sessionData);
+        context.sessionId = session.id;
+        context.currentPhase = session.phase;
+        hasContext = true;
+    } catch {
+        // No playbook session found
+    }
+
+    return hasContext ? context : null;
+}
+
+/**
+ * Create UIAgent with automatic Playbook integration
+ */
+async function createAgent(apiKey: string, options: Partial<GenerateOptions>): Promise<UIAgent> {
+    const agent = new UIAgent(apiKey, options);
+
+    // Auto-detect and load Playbook context
+    const projectPath = options.projectPath || process.cwd();
+    const playbookContext = await loadPlaybookContext(projectPath);
+
+    if (playbookContext) {
+        agent.setPlaybookContext(playbookContext);
+        console.log(chalk.dim('  ℹ Playbook context detected - using project rules'));
+    }
+
+    return agent;
+}
 
 program
     .name('ui-agent')
@@ -54,7 +119,7 @@ program
         const spinner = ora('Generating component...').start();
 
         try {
-            const agent = new UIAgent(apiKey, {
+            const agent = await createAgent(apiKey, {
                 projectPath: options.project,
                 outputDir: options.output,
                 typescript: options.typescript !== false,
@@ -111,7 +176,7 @@ program
         const spinner = ora('Generating page and components...').start();
 
         try {
-            const agent = new UIAgent(apiKey, {
+            const agent = await createAgent(apiKey, {
                 projectPath: options.project,
                 outputDir: options.output,
             });
@@ -187,7 +252,7 @@ program
                 spinner.text = 'Backup created, modifying...';
             }
 
-            const agent = new UIAgent(apiKey, {
+            const agent = await createAgent(apiKey, {
                 projectPath: options.project,
             });
 
@@ -234,7 +299,7 @@ program
         console.log(chalk.white('    • "A user profile card with avatar and stats"\n'));
         console.log(chalk.gray('  Type "exit" to quit.\n'));
 
-        const agent = new UIAgent(apiKey, {
+        const agent = await createAgent(apiKey, {
             projectPath: options.project,
         });
 
@@ -370,7 +435,7 @@ program
         const spinner = ora('Generating...').start();
 
         try {
-            const agent = new UIAgent(apiKey, {
+            const agent = await createAgent(apiKey, {
                 projectPath: options.project,
                 outputDir: options.output,
             });

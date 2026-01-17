@@ -26,12 +26,22 @@ export interface GeneratedComponent {
     componentName: string;
 }
 
+export interface PlaybookContext {
+    sessionId?: string;
+    prd?: string;
+    claudeMd?: string;
+    techStack?: string[];
+    currentPhase?: string;
+}
+
 /**
  * UI Agent - Generates React components using Claude AI
+ * Integrates with Playbook Agent for coordinated project development
  */
 export class UIAgent {
     private client: Anthropic;
     private options: GenerateOptions;
+    private playbookContext: PlaybookContext | null = null;
 
     constructor(apiKey: string, options: Partial<GenerateOptions> = {}) {
         this.client = new Anthropic({ apiKey });
@@ -43,6 +53,20 @@ export class UIAgent {
             typescript: true,
             ...options,
         };
+    }
+
+    /**
+     * Set Playbook context for integrated workflow
+     */
+    setPlaybookContext(context: PlaybookContext): void {
+        this.playbookContext = context;
+    }
+
+    /**
+     * Get current Playbook context
+     */
+    getPlaybookContext(): PlaybookContext | null {
+        return this.playbookContext;
     }
 
     /**
@@ -161,10 +185,58 @@ Return the complete modified component code.`,
 
     /**
      * Get context about the existing project
+     * Includes Playbook context if available (PRD, CLAUDE.md, tech stack)
      */
     private async getProjectContext(): Promise<string> {
         const projectPath = this.options.projectPath;
         let context = '';
+
+        // === PLAYBOOK INTEGRATION ===
+        // If we have Playbook context, include it for better generation
+        if (this.playbookContext) {
+            context += '=== PLAYBOOK PROJECT CONTEXT ===\n';
+
+            if (this.playbookContext.currentPhase) {
+                context += `Current Phase: ${this.playbookContext.currentPhase}\n`;
+            }
+
+            if (this.playbookContext.techStack && this.playbookContext.techStack.length > 0) {
+                context += `Tech Stack: ${this.playbookContext.techStack.join(', ')}\n`;
+            }
+
+            if (this.playbookContext.claudeMd) {
+                context += `\nProject Rules (CLAUDE.md):\n${this.playbookContext.claudeMd.slice(0, 2000)}\n`;
+            }
+
+            if (this.playbookContext.prd) {
+                context += `\nProject Requirements (PRD excerpt):\n${this.playbookContext.prd.slice(0, 1500)}\n`;
+            }
+
+            context += '=== END PLAYBOOK CONTEXT ===\n\n';
+        }
+
+        // === AUTO-DETECT PLAYBOOK FILES ===
+        // Check for CLAUDE.md in project root (created by Playbook)
+        try {
+            const claudeMdPath = path.join(projectPath, 'CLAUDE.md');
+            const claudeMd = await fs.readFile(claudeMdPath, 'utf-8');
+            if (!this.playbookContext?.claudeMd) {
+                context += `=== PROJECT CLAUDE.md ===\n${claudeMd.slice(0, 2000)}\n=== END CLAUDE.md ===\n\n`;
+            }
+        } catch {
+            // No CLAUDE.md found
+        }
+
+        // Check for PRD.md in docs/ (created by Playbook)
+        try {
+            const prdPath = path.join(projectPath, 'docs', 'PRD.md');
+            const prd = await fs.readFile(prdPath, 'utf-8');
+            if (!this.playbookContext?.prd) {
+                context += `=== PROJECT PRD (excerpt) ===\n${prd.slice(0, 1500)}\n=== END PRD ===\n\n`;
+            }
+        } catch {
+            // No PRD found
+        }
 
         // Check for package.json
         try {
