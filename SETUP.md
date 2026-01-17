@@ -66,23 +66,47 @@ El agente generará código React + Tailwind CSS de calidad profesional.
 
 ## Integración con Claude Code (Recomendado)
 
-Para tener UI Agent como MCP server en Claude Code:
+UI Agent incluye **2 MCPs** que debes agregar a Claude Code:
 
-**Opción 1 - Comando directo:**
+### 1. UI Agent MCP (generación de componentes)
+
 ```bash
 claude mcp add ui-agent --command "ui-agent-mcp --stdio"
 ```
 
-**Opción 2 - Manual:**
+### 2. Design Inspiration MCP (búsqueda de inspiración)
+
+Primero compila el MCP:
+```bash
+cd design-mcp
+pnpm install && pnpm build
+npm link
+```
+
+Luego agrégalo a Claude Code:
+```bash
+claude mcp add design-inspiration --command "design-mcp --stdio"
+```
+
+### Configuración Manual (alternativa)
+
 Edita `~/.claude.json` y agrega en la sección `mcpServers`:
 ```json
 "ui-agent": {
   "command": "ui-agent-mcp",
   "args": ["--stdio"]
+},
+"design-inspiration": {
+  "command": "design-mcp",
+  "args": ["--stdio"]
 }
 ```
 
-Reinicia Claude Code. Verifica que aparezca en "Manage MCP Servers" como `connected`.
+### Verificación
+
+Reinicia Claude Code. Deberías ver ambos en "Manage MCP Servers":
+- `ui-agent` → connected
+- `design-inspiration` → connected
 
 ## Integración con Claude Desktop (Opcional)
 

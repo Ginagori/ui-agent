@@ -1,5 +1,5 @@
 # UI Agent - Global Installation Script (Windows PowerShell)
-# Run this script to install both the MCP server and CLI globally
+# Run this script to install the MCP servers and CLI globally
 
 $ErrorActionPreference = "Stop"
 
@@ -35,6 +35,14 @@ npm link
 Write-Host "✅ UI Agent CLI installed: ui-agent" -ForegroundColor Green
 
 Write-Host ""
+Write-Host "📦 Installing Design Inspiration MCP..." -ForegroundColor Blue
+Set-Location "$RootDir\design-mcp"
+pnpm install
+pnpm build
+npm link
+Write-Host "✅ Design MCP installed: design-mcp" -ForegroundColor Green
+
+Write-Host ""
 Write-Host "╔══════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
 Write-Host "║                 Installation Complete!                    ║" -ForegroundColor Cyan
 Write-Host "╚══════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
@@ -42,14 +50,15 @@ Write-Host ""
 Write-Host "🚀 Available commands:" -ForegroundColor White
 Write-Host "   ui-agent          - AI-powered UI generation CLI"
 Write-Host "   ui-agent-mcp      - MCP server for Claude integration"
+Write-Host "   design-mcp        - Design inspiration search MCP"
 Write-Host ""
 Write-Host "📝 Quick start:" -ForegroundColor White
-Write-Host '   1. Set your API key: $env:ANTHROPIC_API_KEY="your_key"'
-Write-Host "   2. Run: ui-agent chat"
-Write-Host "   3. Describe the UI you want!"
+Write-Host "   1. Run: ui-agent chat"
+Write-Host "   2. Describe the UI you want!"
 Write-Host ""
-Write-Host "📚 For Claude Desktop integration, add to your config:" -ForegroundColor White
-Write-Host '   {"mcpServers": {"ui-agent": {"command": "ui-agent-mcp", "args": ["--stdio"]}}}'
+Write-Host "📚 Add MCPs to Claude Code:" -ForegroundColor White
+Write-Host '   claude mcp add ui-agent --command "ui-agent-mcp --stdio"'
+Write-Host '   claude mcp add design-inspiration --command "design-mcp --stdio"'
 Write-Host ""
 
 # Return to original directory

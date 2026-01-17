@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # UI Agent - Global Installation Script
-# Run this script to install both the MCP server and CLI globally
+# Run this script to install the MCP servers and CLI globally
 
 set -e
 
@@ -36,6 +36,14 @@ npm link
 echo "✅ UI Agent CLI installed: ui-agent"
 
 echo ""
+echo "📦 Installing Design Inspiration MCP..."
+cd "$ROOT_DIR/design-mcp"
+pnpm install
+pnpm build
+npm link
+echo "✅ Design MCP installed: design-mcp"
+
+echo ""
 echo "╔══════════════════════════════════════════════════════════╗"
 echo "║                 Installation Complete!                    ║"
 echo "╚══════════════════════════════════════════════════════════╝"
@@ -43,12 +51,13 @@ echo ""
 echo "🚀 Available commands:"
 echo "   ui-agent          - AI-powered UI generation CLI"
 echo "   ui-agent-mcp      - MCP server for Claude integration"
+echo "   design-mcp        - Design inspiration search MCP"
 echo ""
 echo "📝 Quick start:"
-echo "   1. Set your API key: export ANTHROPIC_API_KEY=your_key"
-echo "   2. Run: ui-agent chat"
-echo "   3. Describe the UI you want!"
+echo "   1. Run: ui-agent chat"
+echo "   2. Describe the UI you want!"
 echo ""
-echo "📚 For Claude Desktop integration, add to your config:"
-echo '   {"mcpServers": {"ui-agent": {"command": "ui-agent-mcp", "args": ["--stdio"]}}}'
+echo "📚 Add MCPs to Claude Code:"
+echo '   claude mcp add ui-agent --command "ui-agent-mcp --stdio"'
+echo '   claude mcp add design-inspiration --command "design-mcp --stdio"'
 echo ""
