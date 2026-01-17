@@ -28,25 +28,9 @@ chmod +x scripts/install-global.sh
 ./scripts/install-global.sh
 ```
 
-### Paso 3: Configurar API Key
+### Paso 3: ¡Listo!
 
-Necesitas una API key de Anthropic. Una vez que la tengas:
-
-**Windows (PowerShell):**
-```powershell
-# Temporal (solo esta sesión)
-$env:ANTHROPIC_API_KEY="sk-ant-tu-api-key-aqui"
-
-# Permanente (recomendado)
-[System.Environment]::SetEnvironmentVariable("ANTHROPIC_API_KEY", "sk-ant-tu-api-key-aqui", "User")
-```
-
-**macOS / Linux:**
-```bash
-# Agregar al ~/.bashrc o ~/.zshrc
-echo 'export ANTHROPIC_API_KEY="sk-ant-tu-api-key-aqui"' >> ~/.zshrc
-source ~/.zshrc
-```
+Con la suscripción MAX de Claude no necesitas configurar nada más. El agente usa Claude Code directamente.
 
 ## Uso
 

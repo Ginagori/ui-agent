@@ -23,15 +23,9 @@ Esto instala dos comandos globales:
 - `ui-agent` - CLI para generar componentes
 - `ui-agent-mcp` - Servidor MCP para Claude Desktop
 
-### Configurar API Key
+### ¡Listo!
 
-```bash
-# En tu terminal
-export ANTHROPIC_API_KEY=sk-ant-your-key
-
-# O en Windows PowerShell
-$env:ANTHROPIC_API_KEY="sk-ant-your-key"
-```
+Con la suscripción MAX de Claude no necesitas configurar API keys. El agente funciona directamente con Claude Code.
 
 ---
 
