@@ -210,6 +210,48 @@ MCP_SERVER_PORT=8080 ui-agent-mcp
 
 ---
 
+## 🎨 Design Inspiration MCP
+
+UI Agent incluye un MCP dedicado para búsqueda de inspiración de diseño.
+
+### Herramientas Disponibles
+
+| Herramienta | Descripción |
+|-------------|-------------|
+| `search_dribbble` | Buscar shots en Dribbble |
+| `search_behance` | Buscar proyectos en Behance |
+| `search_awwwards` | Buscar sitios premiados en Awwwards |
+| `search_design_inspiration` | Buscar en múltiples fuentes a la vez |
+| `get_ui_pattern` | Obtener mejores prácticas para un patrón UI |
+| `list_ui_patterns` | Listar todos los patrones UI disponibles |
+| `get_design_recommendations` | Recomendaciones para un caso de uso específico |
+
+### Flujo de Trabajo
+
+```bash
+# 1. Buscar inspiración
+"Busca en Dribbble dashboards para clínicas veterinarias"
+
+# 2. Obtener patrones
+"¿Cuáles son las mejores prácticas para un dashboard?"
+
+# 3. Generar componente
+"Crea un dashboard siguiendo esa inspiración"
+```
+
+### Instalación
+
+```bash
+cd design-mcp
+pnpm install && pnpm build
+npm link
+
+# Agregar a Claude Code
+claude mcp add design-inspiration --command "design-mcp --stdio"
+```
+
+---
+
 ## 🤝 Integración con Playbook Agent
 
 UI Agent se integra automáticamente con **AI Project Playbook Agent** para desarrollo coordinado de proyectos.
