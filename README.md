@@ -6,14 +6,14 @@ Generador de componentes UI con calidad profesional (estilo Lovable) usando Clau
 
 ### Windows (PowerShell)
 ```powershell
-git clone https://github.com/your-org/ui-agent.git
+git clone https://github.com/Ginagori/ui-agent.git
 cd ui-agent
 .\scripts\install-global.ps1
 ```
 
 ### macOS / Linux
 ```bash
-git clone https://github.com/your-org/ui-agent.git
+git clone https://github.com/Ginagori/ui-agent.git
 cd ui-agent
 chmod +x scripts/install-global.sh
 ./scripts/install-global.sh
@@ -41,7 +41,7 @@ Tu compañero puede instalar UI Agent en su máquina:
 
 ```bash
 # Clonar el repo
-git clone https://github.com/your-org/ui-agent.git
+git clone https://github.com/Ginagori/ui-agent.git
 cd ui-agent
 
 # Ejecutar script de instalación (Windows)

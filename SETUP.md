@@ -11,7 +11,7 @@
 ### Paso 1: Clonar el repositorio
 
 ```powershell
-git clone https://github.com/natserract/ui-agent.git
+git clone https://github.com/Ginagori/ui-agent.git
 cd ui-agent
 ```
 
