@@ -332,35 +332,24 @@ ui-agent/
 
 | Escenario | Herramienta |
 |-----------|-------------|
-| Generar componentes en tu proyecto local | **UI Agent** |
-| Trabajar desde VS Code con terminal | **UI Agent** |
-| Integrar con Claude Desktop | **MCP Server** |
-| Conectar con Lovable | **MCP Server** (como personal connector) |
-| Automatización en CI/CD | **MCP Server** |
+| Generar componentes en tu proyecto local | **UI Agent CLI** |
+| Trabajar desde VS Code con terminal | **UI Agent CLI** |
+| Integrar con Claude Code | **MCP Servers** |
+| Buscar inspiración de diseño | **Design MCP** |
+| Automatización con Claude | **MCP Servers** |
 
 ## Requisitos
 
 - Node.js 18+
 - pnpm
-- API Key de Anthropic (para UI Agent)
-
-## Variables de Entorno
-
-```bash
-# Para UI Agent
-ANTHROPIC_API_KEY=sk-ant-...
-
-# Para MCP Server
-LOVABLE_API_KEY=...
-LOVABLE_WORKSPACE_ID=...
-MCP_SERVER_PORT=3000
-```
+- Claude MAX subscription (no API key needed)
 
 ## Referencias
 
-- [Anthropic API](https://docs.anthropic.com)
+- [Anthropic Claude API](https://docs.anthropic.com)
 - [Model Context Protocol](https://modelcontextprotocol.io)
-- [Lovable Documentation](https://docs.lovable.dev)
+- [React Documentation](https://react.dev)
+- [Tailwind CSS](https://tailwindcss.com)
 
 ## Licencia
 
