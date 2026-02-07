@@ -1,284 +1,152 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import * as z from 'zod';
-import { LovableApiClient } from '../client/lovable-api.js';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
+import { detectPackageManager, execCommand } from '../utils.js';
 
 /**
- * Register deployment tools with the MCP server
+ * Register build tools with the MCP server
  */
 export function registerDeployTools(server: McpServer): void {
-    const client = new LovableApiClient();
 
-    // Deploy project
+    // Build the project locally
     server.registerTool(
-        'deploy_project',
+        'build_project',
         {
-            title: 'Deploy Project',
-            description: 'Deploy a Lovable project to production or preview environment',
+            title: 'Build Project',
+            description: 'Run the build script (pnpm build / npm run build) in a local project',
             inputSchema: {
-                projectId: z.string().describe('The project ID to deploy'),
-                environment: z.enum(['preview', 'production']).default('preview').describe('Deployment environment'),
-                waitForCompletion: z.boolean().default(true).describe('Wait for deployment to complete'),
+                projectPath: z.string().describe('Absolute path to the project root'),
             },
             outputSchema: {
                 success: z.boolean(),
-                deploymentId: z.string().optional(),
-                status: z.enum(['pending', 'building', 'deploying', 'success', 'failed']),
-                url: z.string().optional(),
+                outputDir: z.string().optional(),
+                buildOutput: z.string().optional(),
                 message: z.string(),
             }
         },
-        async ({ projectId, environment, waitForCompletion }) => {
+        async ({ projectPath }) => {
             try {
-                const deployment = await client.deploy(projectId, {
-                    environment,
-                    waitForCompletion,
-                });
+                const resolvedPath = path.resolve(projectPath);
+                const pm = await detectPackageManager(resolvedPath);
 
-                const output = {
-                    success: deployment.status === 'success',
-                    deploymentId: deployment.id,
-                    status: deployment.status,
-                    url: deployment.url,
-                    message: deployment.status === 'success'
-                        ? `Deployed successfully to ${deployment.url}`
-                        : `Deployment ${deployment.status}`,
-                };
+                // Verify build script exists
+                const pkgData = JSON.parse(
+                    await fs.readFile(path.join(resolvedPath, 'package.json'), 'utf-8')
+                );
+                if (!pkgData.scripts?.build) {
+                    const output = {
+                        success: false,
+                        message: 'No "build" script found in package.json',
+                    };
+                    return {
+                        content: [{ type: 'text' as const, text: JSON.stringify(output, null, 2) }],
+                        structuredContent: output,
+                    };
+                }
 
-                return {
-                    content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
-                    structuredContent: output,
-                };
-            } catch (error) {
-                const output = {
-                    success: false,
-                    status: 'failed' as const,
-                    message: `Deployment failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                };
-                return {
-                    content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
-                    structuredContent: output,
-                };
-            }
-        }
-    );
+                const command = pm === 'pnpm' ? 'pnpm build'
+                    : pm === 'yarn' ? 'yarn build'
+                    : 'npm run build';
 
-    // Get deployment status
-    server.registerTool(
-        'get_deploy_status',
-        {
-            title: 'Get Deployment Status',
-            description: 'Check the status of a deployment',
-            inputSchema: {
-                projectId: z.string().describe('The project ID'),
-                deploymentId: z.string().optional().describe('Specific deployment ID (latest if not provided)'),
-            },
-            outputSchema: {
-                success: z.boolean(),
-                deployment: z.object({
-                    id: z.string(),
-                    status: z.string(),
-                    environment: z.string(),
-                    url: z.string().optional(),
-                    startedAt: z.string(),
-                    completedAt: z.string().optional(),
-                    error: z.string().optional(),
-                }).optional(),
-                message: z.string().optional(),
-            }
-        },
-        async ({ projectId, deploymentId }) => {
-            try {
-                const deployment = await client.getDeploymentStatus(projectId, deploymentId);
+                const startTime = Date.now();
+                const { stdout, stderr } = await execCommand(command, resolvedPath, 120000);
+                const duration = Date.now() - startTime;
+
+                // Detect output directory
+                let outputDir: string | undefined;
+                for (const dir of ['dist', 'build', '.next', 'out']) {
+                    try {
+                        await fs.access(path.join(resolvedPath, dir));
+                        outputDir = dir;
+                        break;
+                    } catch { /* not found */ }
+                }
 
                 const output = {
                     success: true,
-                    deployment: {
-                        id: deployment.id,
-                        status: deployment.status,
-                        environment: deployment.environment,
-                        url: deployment.url,
-                        startedAt: deployment.startedAt,
-                        completedAt: deployment.completedAt,
-                        error: deployment.error,
-                    },
+                    outputDir,
+                    buildOutput: (stdout + stderr).slice(0, 2000),
+                    message: `Build completed in ${(duration / 1000).toFixed(1)}s${outputDir ? ` → ${outputDir}/` : ''}`,
                 };
-
                 return {
-                    content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
+                    content: [{ type: 'text' as const, text: JSON.stringify(output, null, 2) }],
                     structuredContent: output,
                 };
             } catch (error) {
                 const output = {
                     success: false,
-                    message: `Failed to get status: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                    message: `Build failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
                 };
                 return {
-                    content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
+                    content: [{ type: 'text' as const, text: JSON.stringify(output, null, 2) }],
                     structuredContent: output,
                 };
             }
         }
     );
 
-    // List deployments
+    // Check if project has been built
     server.registerTool(
-        'list_deployments',
+        'get_build_status',
         {
-            title: 'List Deployments',
-            description: 'List deployment history for a project',
+            title: 'Get Build Status',
+            description: 'Check if a local project has a build output directory (dist/, build/, etc.)',
             inputSchema: {
-                projectId: z.string().describe('The project ID'),
-                limit: z.number().min(1).max(50).default(10).describe('Maximum deployments to return'),
-                environment: z.enum(['all', 'preview', 'production']).default('all').describe('Filter by environment'),
+                projectPath: z.string().describe('Absolute path to the project root'),
             },
             outputSchema: {
                 success: z.boolean(),
-                deployments: z.array(z.object({
-                    id: z.string(),
-                    status: z.string(),
-                    environment: z.string(),
-                    url: z.string().optional(),
-                    createdAt: z.string(),
-                })),
-                total: z.number(),
-            }
-        },
-        async ({ projectId, limit, environment }) => {
-            try {
-                const deployments = await client.listDeployments(projectId, { limit, environment });
-
-                const output = {
-                    success: true,
-                    deployments: deployments.map(d => ({
-                        id: d.id,
-                        status: d.status,
-                        environment: d.environment,
-                        url: d.url,
-                        createdAt: d.startedAt,
-                    })),
-                    total: deployments.length,
-                };
-
-                return {
-                    content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
-                    structuredContent: output,
-                };
-            } catch (error) {
-                const output = {
-                    success: false,
-                    deployments: [],
-                    total: 0,
-                };
-                return {
-                    content: [{ type: 'text', text: `Error: ${error}` }],
-                    structuredContent: output,
-                };
-            }
-        }
-    );
-
-    // Rollback deployment
-    server.registerTool(
-        'rollback_deployment',
-        {
-            title: 'Rollback Deployment',
-            description: 'Rollback to a previous deployment version',
-            inputSchema: {
-                projectId: z.string().describe('The project ID'),
-                targetDeploymentId: z.string().describe('The deployment ID to rollback to'),
-                confirm: z.boolean().describe('Confirmation flag - must be true to proceed'),
-            },
-            outputSchema: {
-                success: z.boolean(),
-                newDeploymentId: z.string().optional(),
+                exists: z.boolean(),
+                outputDir: z.string().optional(),
+                lastModified: z.string().optional(),
                 message: z.string(),
             }
         },
-        async ({ projectId, targetDeploymentId, confirm }) => {
-            if (!confirm) {
-                const output = {
-                    success: false,
-                    message: 'Rollback cancelled - confirmation required',
-                };
-                return {
-                    content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
-                    structuredContent: output,
-                };
-            }
-
+        async ({ projectPath }) => {
             try {
-                const result = await client.rollbackDeployment(projectId, targetDeploymentId);
+                const resolvedPath = path.resolve(projectPath);
+
+                for (const dir of ['dist', 'build', '.next', 'out']) {
+                    try {
+                        const dirPath = path.join(resolvedPath, dir);
+                        const stat = await fs.stat(dirPath);
+                        const output = {
+                            success: true,
+                            exists: true,
+                            outputDir: dir,
+                            lastModified: stat.mtime.toISOString(),
+                            message: `Build output found at ${dir}/ (last modified: ${stat.mtime.toLocaleString()})`,
+                        };
+                        return {
+                            content: [{ type: 'text' as const, text: JSON.stringify(output, null, 2) }],
+                            structuredContent: output,
+                        };
+                    } catch { /* not found, try next */ }
+                }
 
                 const output = {
                     success: true,
-                    newDeploymentId: result.newDeploymentId,
-                    message: `Successfully rolled back to deployment ${targetDeploymentId}`,
+                    exists: false,
+                    message: 'No build output found. Run build_project first.',
                 };
-
                 return {
-                    content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
+                    content: [{ type: 'text' as const, text: JSON.stringify(output, null, 2) }],
                     structuredContent: output,
                 };
             } catch (error) {
                 const output = {
                     success: false,
-                    message: `Rollback failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                    exists: false,
+                    message: `Error checking build status: ${error instanceof Error ? error.message : 'Unknown error'}`,
                 };
                 return {
-                    content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
+                    content: [{ type: 'text' as const, text: JSON.stringify(output, null, 2) }],
                     structuredContent: output,
                 };
             }
         }
     );
 
-    // Get deployment logs
-    server.registerTool(
-        'get_deploy_logs',
-        {
-            title: 'Get Deployment Logs',
-            description: 'Retrieve build and deployment logs',
-            inputSchema: {
-                projectId: z.string().describe('The project ID'),
-                deploymentId: z.string().describe('The deployment ID'),
-                logType: z.enum(['build', 'runtime', 'all']).default('all').describe('Type of logs to retrieve'),
-            },
-            outputSchema: {
-                success: z.boolean(),
-                logs: z.array(z.object({
-                    timestamp: z.string(),
-                    level: z.string(),
-                    message: z.string(),
-                })),
-                message: z.string().optional(),
-            }
-        },
-        async ({ projectId, deploymentId, logType }) => {
-            try {
-                const logs = await client.getDeploymentLogs(projectId, deploymentId, logType);
-
-                const output = {
-                    success: true,
-                    logs,
-                };
-
-                return {
-                    content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
-                    structuredContent: output,
-                };
-            } catch (error) {
-                const output = {
-                    success: false,
-                    logs: [],
-                    message: `Failed to get logs: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                };
-                return {
-                    content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
-                    structuredContent: output,
-                };
-            }
-        }
-    );
-
-    console.log('[MCP] Deploy tools registered');
+    console.log('[MCP] Build tools registered');
 }

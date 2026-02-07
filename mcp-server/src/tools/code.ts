@@ -1,24 +1,26 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import * as z from 'zod';
-import { LovableApiClient } from '../client/lovable-api.js';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
+import { detectPackageManager, execCommand } from '../utils.js';
+
+const IGNORED_DIRS = new Set(['node_modules', '.git', 'dist', 'build', '.next', '.cache']);
 
 /**
  * Register code editing tools with the MCP server
  */
 export function registerCodeTools(server: McpServer): void {
-    const client = new LovableApiClient();
 
-    // Edit a file in the project
+    // Edit/create a file in the project
     server.registerTool(
         'edit_file',
         {
             title: 'Edit File',
-            description: 'Create or update a file in a Lovable project. Supports all file types (tsx, ts, css, json, etc.)',
+            description: 'Create or update a file in a local project. Creates parent directories automatically.',
             inputSchema: {
-                projectId: z.string().describe('The project ID'),
+                projectPath: z.string().describe('Absolute path to the project root'),
                 filePath: z.string().describe('File path relative to project root (e.g., "src/components/Button.tsx")'),
                 content: z.string().describe('The complete file content'),
-                commitMessage: z.string().optional().describe('Optional commit message for the change'),
             },
             outputSchema: {
                 success: z.boolean(),
@@ -26,22 +28,19 @@ export function registerCodeTools(server: McpServer): void {
                 message: z.string(),
             }
         },
-        async ({ projectId, filePath, content, commitMessage }) => {
+        async ({ projectPath, filePath, content }) => {
             try {
-                await client.editFile(projectId, {
-                    path: filePath,
-                    content,
-                    operation: 'update',
-                }, commitMessage);
+                const fullPath = path.resolve(projectPath, filePath);
+                await fs.mkdir(path.dirname(fullPath), { recursive: true });
+                await fs.writeFile(fullPath, content, 'utf-8');
 
                 const output = {
                     success: true,
                     filePath,
-                    message: `File "${filePath}" updated successfully`,
+                    message: `File "${filePath}" saved successfully`,
                 };
-
                 return {
-                    content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
+                    content: [{ type: 'text' as const, text: JSON.stringify(output, null, 2) }],
                     structuredContent: output,
                 };
             } catch (error) {
@@ -51,7 +50,7 @@ export function registerCodeTools(server: McpServer): void {
                     message: `Failed to edit file: ${error instanceof Error ? error.message : 'Unknown error'}`,
                 };
                 return {
-                    content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
+                    content: [{ type: 'text' as const, text: JSON.stringify(output, null, 2) }],
                     structuredContent: output,
                 };
             }
@@ -63,9 +62,9 @@ export function registerCodeTools(server: McpServer): void {
         'add_component',
         {
             title: 'Add React Component',
-            description: 'Create a new React component with boilerplate code. Automatically sets up TypeScript, props interface, and styling.',
+            description: 'Create a new React component file with TypeScript, props interface, and Tailwind styling',
             inputSchema: {
-                projectId: z.string().describe('The project ID'),
+                projectPath: z.string().describe('Absolute path to the project root'),
                 componentName: z.string().describe('Component name in PascalCase (e.g., "UserProfile")'),
                 componentType: z.enum(['page', 'component', 'layout']).default('component').describe('Type of component'),
                 directory: z.string().default('src/components').describe('Directory to create the component in'),
@@ -83,9 +82,8 @@ export function registerCodeTools(server: McpServer): void {
                 message: z.string(),
             }
         },
-        async ({ projectId, componentName, componentType: _componentType, directory, props, includeStyles }) => {
+        async ({ projectPath, componentName, directory, props, includeStyles }) => {
             try {
-                // Generate component code
                 const propsInterface = props && props.length > 0
                     ? `interface ${componentName}Props {\n${props.map(p =>
                         `  ${p.name}${p.required ? '' : '?'}: ${p.type};`
@@ -113,12 +111,9 @@ export default ${componentName};
 `;
 
                 const filePath = `${directory}/${componentName}.tsx`;
-
-                await client.editFile(projectId, {
-                    path: filePath,
-                    content: componentCode,
-                    operation: 'create',
-                }, `Add ${componentName} component`);
+                const fullPath = path.resolve(projectPath, filePath);
+                await fs.mkdir(path.dirname(fullPath), { recursive: true });
+                await fs.writeFile(fullPath, componentCode, 'utf-8');
 
                 const output = {
                     success: true,
@@ -126,9 +121,8 @@ export default ${componentName};
                     componentCode,
                     message: `Component "${componentName}" created at ${filePath}`,
                 };
-
                 return {
-                    content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
+                    content: [{ type: 'text' as const, text: JSON.stringify(output, null, 2) }],
                     structuredContent: output,
                 };
             } catch (error) {
@@ -138,7 +132,7 @@ export default ${componentName};
                     message: `Failed to create component: ${error instanceof Error ? error.message : 'Unknown error'}`,
                 };
                 return {
-                    content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
+                    content: [{ type: 'text' as const, text: JSON.stringify(output, null, 2) }],
                     structuredContent: output,
                 };
             }
@@ -150,9 +144,9 @@ export default ${componentName};
         'get_file',
         {
             title: 'Get File Content',
-            description: 'Read the content of a file from a Lovable project',
+            description: 'Read the content of a file from a local project',
             inputSchema: {
-                projectId: z.string().describe('The project ID'),
+                projectPath: z.string().describe('Absolute path to the project root'),
                 filePath: z.string().describe('File path relative to project root'),
             },
             outputSchema: {
@@ -162,18 +156,14 @@ export default ${componentName};
                 message: z.string().optional(),
             }
         },
-        async ({ projectId, filePath }) => {
+        async ({ projectPath, filePath }) => {
             try {
-                const content = await client.getFileContent(projectId, filePath);
+                const fullPath = path.resolve(projectPath, filePath);
+                const content = await fs.readFile(fullPath, 'utf-8');
 
-                const output = {
-                    success: true,
-                    filePath,
-                    content,
-                };
-
+                const output = { success: true, filePath, content };
                 return {
-                    content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
+                    content: [{ type: 'text' as const, text: JSON.stringify(output, null, 2) }],
                     structuredContent: output,
                 };
             } catch (error) {
@@ -183,7 +173,7 @@ export default ${componentName};
                     message: `File not found or error: ${error instanceof Error ? error.message : 'Unknown error'}`,
                 };
                 return {
-                    content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
+                    content: [{ type: 'text' as const, text: JSON.stringify(output, null, 2) }],
                     structuredContent: output,
                 };
             }
@@ -195,11 +185,10 @@ export default ${componentName};
         'list_files',
         {
             title: 'List Project Files',
-            description: 'List all files in a Lovable project or a specific directory',
+            description: 'List files in a local project directory (excludes node_modules, .git, dist)',
             inputSchema: {
-                projectId: z.string().describe('The project ID'),
-                directory: z.string().default('').describe('Directory to list (empty for root)'),
-                pattern: z.string().optional().describe('Glob pattern to filter files (e.g., "**/*.tsx")'),
+                projectPath: z.string().describe('Absolute path to the project root'),
+                directory: z.string().default('').describe('Subdirectory to list (empty for root)'),
             },
             outputSchema: {
                 success: z.boolean(),
@@ -211,28 +200,37 @@ export default ${componentName};
                 total: z.number(),
             }
         },
-        async ({ projectId, directory, pattern }) => {
+        async ({ projectPath, directory }) => {
             try {
-                const files = await client.listFiles(projectId, directory, pattern);
+                const targetDir = path.resolve(projectPath, directory);
+                const files: Array<{ path: string; type: 'file' | 'directory'; size?: number }> = [];
 
-                const output = {
-                    success: true,
-                    files,
-                    total: files.length,
-                };
+                async function walk(dir: string, prefix: string): Promise<void> {
+                    const entries = await fs.readdir(dir, { withFileTypes: true });
+                    for (const entry of entries) {
+                        if (IGNORED_DIRS.has(entry.name)) continue;
+                        const relativePath = prefix ? `${prefix}/${entry.name}` : entry.name;
+                        if (entry.isDirectory()) {
+                            files.push({ path: relativePath, type: 'directory' });
+                            await walk(path.join(dir, entry.name), relativePath);
+                        } else {
+                            const stat = await fs.stat(path.join(dir, entry.name));
+                            files.push({ path: relativePath, type: 'file', size: stat.size });
+                        }
+                    }
+                }
 
+                await walk(targetDir, '');
+
+                const output = { success: true, files, total: files.length };
                 return {
-                    content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
+                    content: [{ type: 'text' as const, text: JSON.stringify(output, null, 2) }],
                     structuredContent: output,
                 };
             } catch (error) {
-                const output = {
-                    success: false,
-                    files: [],
-                    total: 0,
-                };
+                const output = { success: false, files: [], total: 0 };
                 return {
-                    content: [{ type: 'text', text: `Error listing files: ${error}` }],
+                    content: [{ type: 'text' as const, text: `Error listing files: ${error}` }],
                     structuredContent: output,
                 };
             }
@@ -244,9 +242,9 @@ export default ${componentName};
         'install_dependency',
         {
             title: 'Install NPM Dependency',
-            description: 'Install an npm package in a Lovable project',
+            description: 'Install an npm package in a local project using the detected package manager (pnpm/yarn/npm)',
             inputSchema: {
-                projectId: z.string().describe('The project ID'),
+                projectPath: z.string().describe('Absolute path to the project root'),
                 packageName: z.string().describe('NPM package name (e.g., "lodash", "@tanstack/react-query")'),
                 version: z.string().optional().describe('Specific version (e.g., "^4.0.0")'),
                 isDev: z.boolean().default(false).describe('Install as dev dependency'),
@@ -258,23 +256,38 @@ export default ${componentName};
                 message: z.string(),
             }
         },
-        async ({ projectId, packageName, version, isDev }) => {
+        async ({ projectPath, packageName, version, isDev }) => {
             try {
-                const result = await client.installDependency(projectId, {
-                    name: packageName,
-                    version,
-                    isDev,
-                });
+                const resolvedPath = path.resolve(projectPath);
+                const pm = await detectPackageManager(resolvedPath);
+                const pkg = version ? `${packageName}@${version}` : packageName;
+
+                let command: string;
+                if (pm === 'pnpm') {
+                    command = `pnpm add ${isDev ? '-D ' : ''}${pkg}`;
+                } else if (pm === 'yarn') {
+                    command = `yarn add ${isDev ? '--dev ' : ''}${pkg}`;
+                } else {
+                    command = `npm install ${isDev ? '--save-dev ' : ''}${pkg}`;
+                }
+
+                await execCommand(command, resolvedPath);
+
+                // Read installed version from package.json
+                const pkgData = JSON.parse(
+                    await fs.readFile(path.join(resolvedPath, 'package.json'), 'utf-8')
+                );
+                const deps = isDev ? pkgData.devDependencies : pkgData.dependencies;
+                const installedVersion = deps?.[packageName] || version || 'latest';
 
                 const output = {
                     success: true,
                     packageName,
-                    version: result.installedVersion,
-                    message: `Package "${packageName}@${result.installedVersion}" installed successfully`,
+                    version: installedVersion,
+                    message: `Package "${packageName}@${installedVersion}" installed with ${pm}`,
                 };
-
                 return {
-                    content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
+                    content: [{ type: 'text' as const, text: JSON.stringify(output, null, 2) }],
                     structuredContent: output,
                 };
             } catch (error) {
@@ -284,7 +297,7 @@ export default ${componentName};
                     message: `Failed to install package: ${error instanceof Error ? error.message : 'Unknown error'}`,
                 };
                 return {
-                    content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
+                    content: [{ type: 'text' as const, text: JSON.stringify(output, null, 2) }],
                     structuredContent: output,
                 };
             }

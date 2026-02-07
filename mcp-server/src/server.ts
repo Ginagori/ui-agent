@@ -4,13 +4,11 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import express from 'express';
 import { randomUUID } from 'node:crypto';
-import 'dotenv/config';
-
 import { registerProjectTools } from './tools/project.js';
 import { registerCodeTools } from './tools/code.js';
 import { registerDeployTools } from './tools/deploy.js';
 
-const SERVER_NAME = 'lovable-mcp-agent';
+const SERVER_NAME = 'ui-agent-mcp';
 const SERVER_VERSION = '1.0.0';
 
 /**
